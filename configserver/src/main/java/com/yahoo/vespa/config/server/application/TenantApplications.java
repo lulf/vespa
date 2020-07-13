@@ -15,7 +15,6 @@ import com.yahoo.vespa.config.GetConfigRequest;
 import com.yahoo.vespa.config.protocol.ConfigResponse;
 import com.yahoo.vespa.config.server.GlobalComponentRegistry;
 import com.yahoo.vespa.config.server.NotFoundException;
-import com.yahoo.vespa.config.server.ReloadHandler;
 import com.yahoo.vespa.config.server.ReloadListener;
 import com.yahoo.vespa.config.server.RequestHandler;
 import com.yahoo.vespa.config.server.deploy.TenantFileSystemDirs;
@@ -59,7 +58,7 @@ import static java.util.stream.Collectors.toSet;
  * @author Ulf Lilleengen
  * @author jonmv
  */
-public class TenantApplications implements RequestHandler, ReloadHandler, HostValidator<ApplicationId> {
+public class TenantApplications implements RequestHandler, HostValidator<ApplicationId> {
 
     private static final Logger log = Logger.getLogger(TenantApplications.class.getName());
 
@@ -88,8 +87,8 @@ public class TenantApplications implements RequestHandler, ReloadHandler, HostVa
         this.tenant = tenant;
         this.zkWatcherExecutor = command -> zkWatcherExecutor.execute(tenant, command);
         this.directoryCache = curator.createDirectoryCache(applicationsPath.getAbsolute(), false, false, zkCacheExecutor);
-        this.directoryCache.start();
         this.directoryCache.addListener(this::childEvent);
+        this.directoryCache.start();
         this.metrics = metrics;
         this.reloadListener = reloadListener;
         this.responseFactory = ConfigResponseFactory.create(configserverConfig);
@@ -128,11 +127,12 @@ public class TenantApplications implements RequestHandler, ReloadHandler, HostVa
         return curator.exists(applicationPath(id));
     }
 
-    /** Returns the id of the currently active session for the given application, if any. Throws on unknown applications. */
+    /** Returns the active session id for the given application. Returns Optional.empty if application not found or no active session exists. */
     public Optional<Long> activeSessionOf(ApplicationId id) {
-        String data = curator.getData(applicationPath(id)).map(Utf8::toString)
-                             .orElseThrow(() -> new NotFoundException("No active session found for application id: '" + id + "'"));
-        return data.isEmpty() ? Optional.empty() : Optional.of(Long.parseLong(data));
+        Optional<byte[]> data = curator.getData(applicationPath(id));
+        return (data.isEmpty() || data.get().length == 0)
+                ? Optional.empty()
+                : data.map(bytes -> Long.parseLong(Utf8.toString(bytes)));
     }
 
     public boolean hasLocalSession(long sessionId) {
@@ -235,7 +235,6 @@ public class TenantApplications implements RequestHandler, ReloadHandler, HostVa
         return locksPath.append(id.serializedForm());
     }
 
-
     /**
      * Gets a config for the given app, or null if not found
      */
@@ -258,7 +257,6 @@ public class TenantApplications implements RequestHandler, ReloadHandler, HostVa
      *
      * @param applicationSet the {@link ApplicationSet} to be reloaded
      */
-    @Override
     public void reloadConfig(ApplicationSet applicationSet) {
         ApplicationId id = applicationSet.getId();
         try (Lock lock = lock(id)) {
@@ -272,7 +270,6 @@ public class TenantApplications implements RequestHandler, ReloadHandler, HostVa
         }
     }
 
-    @Override
     public void removeApplication(ApplicationId applicationId) {
         try (Lock lock = lock(applicationId)) {
             if (exists(applicationId))
@@ -288,7 +285,6 @@ public class TenantApplications implements RequestHandler, ReloadHandler, HostVa
         }
     }
 
-    @Override
     public void removeApplicationsExcept(Set<ApplicationId> applications) {
         for (ApplicationId activeApplication : applicationMapper.listApplicationIds()) {
             if ( ! applications.contains(activeApplication)) {

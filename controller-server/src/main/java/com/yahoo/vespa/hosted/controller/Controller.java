@@ -18,10 +18,12 @@ import com.yahoo.vespa.hosted.controller.api.integration.ServiceRegistry;
 import com.yahoo.vespa.hosted.controller.api.integration.maven.MavenRepository;
 import com.yahoo.vespa.hosted.controller.api.integration.zone.ZoneRegistry;
 import com.yahoo.vespa.hosted.controller.auditlog.AuditLogger;
+import com.yahoo.vespa.hosted.controller.config.ControllerConfig;
 import com.yahoo.vespa.hosted.controller.deployment.JobController;
 import com.yahoo.vespa.hosted.controller.dns.NameServiceForwarder;
 import com.yahoo.vespa.hosted.controller.metric.ConfigServerMetrics;
 import com.yahoo.vespa.hosted.controller.persistence.CuratorDb;
+import com.yahoo.vespa.hosted.controller.persistence.JobControlFlags;
 import com.yahoo.vespa.hosted.controller.security.AccessControl;
 import com.yahoo.vespa.hosted.controller.versions.ControllerVersion;
 import com.yahoo.vespa.hosted.controller.versions.OsVersion;
@@ -76,6 +78,7 @@ public class Controller extends AbstractComponent {
     private final MavenRepository mavenRepository;
     private final Metric metric;
     private final RoutingController routingController;
+    private final ControllerConfig controllerConfig;
 
     /**
      * Creates a controller 
@@ -84,14 +87,15 @@ public class Controller extends AbstractComponent {
      */
     @Inject
     public Controller(CuratorDb curator, RotationsConfig rotationsConfig, AccessControl accessControl, FlagSource flagSource,
-                      MavenRepository mavenRepository, ServiceRegistry serviceRegistry, Metric metric, SecretStore secretStore) {
+                      MavenRepository mavenRepository, ServiceRegistry serviceRegistry, Metric metric, SecretStore secretStore,
+                      ControllerConfig controllerConfig) {
         this(curator, rotationsConfig, accessControl, com.yahoo.net.HostName::getLocalhost, flagSource,
-             mavenRepository, serviceRegistry, metric, secretStore);
+             mavenRepository, serviceRegistry, metric, secretStore, controllerConfig);
     }
 
     public Controller(CuratorDb curator, RotationsConfig rotationsConfig, AccessControl accessControl,
                       Supplier<String> hostnameSupplier, FlagSource flagSource, MavenRepository mavenRepository,
-                      ServiceRegistry serviceRegistry, Metric metric, SecretStore secretStore) {
+                      ServiceRegistry serviceRegistry, Metric metric, SecretStore secretStore, ControllerConfig controllerConfig) {
 
         this.hostnameSupplier = Objects.requireNonNull(hostnameSupplier, "HostnameSupplier cannot be null");
         this.curator = Objects.requireNonNull(curator, "Curator cannot be null");
@@ -109,7 +113,8 @@ public class Controller extends AbstractComponent {
         tenantController = new TenantController(this, curator, accessControl);
         routingController = new RoutingController(this, Objects.requireNonNull(rotationsConfig, "RotationsConfig cannot be null"));
         auditLogger = new AuditLogger(curator, clock);
-        jobControl = new JobControl(curator);
+        jobControl = new JobControl(new JobControlFlags(curator, flagSource));
+        this.controllerConfig = controllerConfig;
 
         // Record the version of this controller
         curator().writeControllerVersion(this.hostname(), ControllerVersion.CURRENT);
@@ -148,6 +153,8 @@ public class Controller extends AbstractComponent {
     public NameServiceForwarder nameServiceForwarder() { return nameServiceForwarder; }
 
     public MavenRepository mavenRepository() { return mavenRepository; }
+
+    public ControllerConfig controllerConfig() { return controllerConfig; }
 
     public ApplicationView getApplicationView(String tenantName, String applicationName, String instanceName,
                                               String environment, String region) {

@@ -173,8 +173,7 @@ BucketDatabaseTest::doFindParents(const std::vector<document::BucketId>& ids,
     // TODO remove in favor of only read guard once legacy DB usage has been ported over
     db().getParents(searchId, entries);
 
-    std::vector<BucketDatabase::Entry> checked_entries;
-    db().acquire_read_guard()->find_parents_and_self(searchId, checked_entries);
+    auto checked_entries = db().acquire_read_guard()->find_parents_and_self(searchId);
     if (entries != checked_entries) {
         return "Mismatch between results from getParents() and ReadGuard!";
     }
@@ -610,7 +609,7 @@ struct InsertBeforeBucketMergingProcessor : BucketDatabase::MergingProcessor {
     Result merge(Merger& m) override {
         if (m.bucket_id() == _before_bucket) {
             // Assumes _before_bucket is > the inserted bucket
-            m.insert_before_current(BucketDatabase::Entry(document::BucketId(16, 2), BI(2)));
+            m.insert_before_current(document::BucketId(16, 2), BucketDatabase::Entry(document::BucketId(16, 2), BI(2)));
         }
         return Result::KeepUnchanged;
     }
@@ -622,7 +621,7 @@ struct InsertAtEndMergingProcessor : BucketDatabase::MergingProcessor {
     }
 
     void insert_remaining_at_end(TrailingInserter& inserter) override {
-        inserter.insert_at_end(BucketDatabase::Entry(document::BucketId(16, 3), BI(3)));
+        inserter.insert_at_end(document::BucketId(16, 3), BucketDatabase::Entry(document::BucketId(16, 3), BI(3)));
     }
 };
 

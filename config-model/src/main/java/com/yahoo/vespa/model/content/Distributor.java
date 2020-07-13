@@ -1,7 +1,9 @@
 // Copyright 2017 Yahoo Holdings. Licensed under the terms of the Apache 2.0 license. See LICENSE in the project root.
 package com.yahoo.vespa.model.content;
 
+import com.yahoo.config.model.api.ModelContext;
 import com.yahoo.config.model.deploy.DeployState;
+import com.yahoo.vespa.config.content.core.StorCommunicationmanagerConfig;
 import com.yahoo.vespa.config.content.core.StorServerConfig;
 import com.yahoo.config.model.producer.AbstractConfigProducer;
 import com.yahoo.vespa.model.builder.xml.dom.ModelElement;
@@ -27,14 +29,14 @@ public class Distributor extends ContentNode {
 
         @Override
         protected Distributor doBuild(DeployState deployState, AbstractConfigProducer ancestor, Element producerSpec) {
-            return new Distributor((DistributorCluster)ancestor, new ModelElement(producerSpec).integerAttribute("distribution-key"),
+            return new Distributor(deployState.getProperties(), (DistributorCluster)ancestor, new ModelElement(producerSpec).integerAttribute("distribution-key"),
                                    clusterXml.integerAttribute("distributor-base-port"), persistenceProvider);
         }
     }
 
-    Distributor(DistributorCluster parent, int distributionKey, Integer distributorBasePort, PersistenceEngine provider) {
-        super(parent, parent.getClusterName(), StorageNode.rootFolder + parent.getClusterName() + "/distributor/"
-                                               + distributionKey, distributionKey);
+    Distributor(ModelContext.Properties properties, DistributorCluster parent, int distributionKey, Integer distributorBasePort, PersistenceEngine provider) {
+        super(properties, parent, parent.getClusterName(),
+             StorageNode.rootFolder + parent.getClusterName() + "/distributor/" + distributionKey, distributionKey);
 
         this.provider = provider;
 
@@ -47,6 +49,13 @@ public class Distributor extends ContentNode {
     public void getConfig(StorServerConfig.Builder builder) {
         super.getConfig(builder);
         provider.getConfig(builder);
+    }
+
+    @Override
+    public void getConfig(StorCommunicationmanagerConfig.Builder builder) {
+        super.getConfig(builder);
+        // Single distributor needs help to encode the messages.
+        builder.mbus.dispatch_on_encode(true);
     }
 
     @Override

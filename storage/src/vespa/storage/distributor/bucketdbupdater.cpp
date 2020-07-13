@@ -181,7 +181,7 @@ public:
             if (key_at_cursor >= key_to_insert) {
                 break;
             }
-            m.insert_before_current(*_current);
+            m.insert_before_current(_current->getBucketId(), *_current);
             ++_current;
         }
         if ((_current != _last) && (key_at_cursor == key_to_insert)) {
@@ -201,7 +201,7 @@ public:
 
     void insert_remaining_at_end(BucketDatabase::TrailingInserter& inserter) override {
         for (; _current != _last; ++_current) {
-            inserter.insert_at_end(*_current);
+            inserter.insert_at_end(_current->getBucketId(), *_current);
         }
     }
 };
@@ -225,7 +225,7 @@ BucketDBUpdater::removeSuperfluousBuckets(
         if (!is_distribution_config_change
             && db_pruning_may_be_elided(oldClusterState, *new_cluster_state, up_states))
         {
-            LOG(info, "[bucket space '%s']: eliding DB pruning for state transition '%s' -> '%s'",
+            LOG(debug, "[bucket space '%s']: eliding DB pruning for state transition '%s' -> '%s'",
                 document::FixedBucketSpaces::to_string(elem.first).data(),
                 oldClusterState.toString().c_str(), new_cluster_state->toString().c_str());
             continue;

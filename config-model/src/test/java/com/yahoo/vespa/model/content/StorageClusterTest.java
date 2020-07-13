@@ -8,6 +8,7 @@ import com.yahoo.config.model.provision.SingleNodeProvisioner;
 import com.yahoo.config.model.test.MockApplicationPackage;
 import com.yahoo.config.provision.Flavor;
 import com.yahoo.config.provisioning.FlavorsConfig;
+import com.yahoo.vespa.config.content.core.StorCommunicationmanagerConfig;
 import com.yahoo.vespa.config.content.core.StorIntegritycheckerConfig;
 import com.yahoo.vespa.config.content.core.StorVisitorConfig;
 import com.yahoo.vespa.config.content.StorFilestorConfig;
@@ -35,7 +36,6 @@ public class StorageClusterTest {
                 .modelHostProvisioner(new SingleNodeProvisioner(flavor)).build());
         return parse(xml, root);
     }
-
     StorageCluster parse(String xml, Flavor flavor, ModelContext.Properties properties) {
         MockRoot root = new MockRoot("", new DeployState.Builder()
                 .applicationPackage(new MockApplicationPackage.Builder().build())
@@ -63,17 +63,36 @@ public class StorageClusterTest {
 
     @Test
     public void testBasics() {
-        StorServerConfig.Builder builder = new StorServerConfig.Builder();
-        parse("<content id=\"foofighters\"><documents/>\n" +
+        StorageCluster storage = parse("<content id=\"foofighters\"><documents/>\n" +
               "  <group>" +
               "     <node distribution-key=\"0\" hostalias=\"mockhost\"/>" +
               "  </group>" +
-              "</content>\n").
-              getConfig(builder);
+              "</content>\n");
 
+        assertEquals(1, storage.getChildren().size());
+        StorServerConfig.Builder builder = new StorServerConfig.Builder();
+        storage.getConfig(builder);
         StorServerConfig config = new StorServerConfig(builder);
-        assertEquals(false, config.is_distributor());
+        assertFalse(config.is_distributor());
         assertEquals("foofighters", config.cluster_name());
+    }
+    @Test
+    public void testCommunicationManagerDefaults() {
+        StorageCluster storage = parse("<content id=\"foofighters\"><documents/>\n" +
+                "  <group>" +
+                "     <node distribution-key=\"0\" hostalias=\"mockhost\"/>" +
+                "  </group>" +
+                "</content>\n");
+        StorCommunicationmanagerConfig.Builder builder = new StorCommunicationmanagerConfig.Builder();
+        storage.getChildren().get("0").getConfig(builder);
+        StorCommunicationmanagerConfig config = new StorCommunicationmanagerConfig(builder);
+        assertFalse(config.mbus().dispatch_on_encode());
+        assertFalse(config.mbus().dispatch_on_decode());
+        assertEquals(4, config.mbus().num_threads());
+        assertEquals(StorCommunicationmanagerConfig.Mbus.Optimize_for.LATENCY, config.mbus().optimize_for());
+        assertFalse(config.skip_thread());
+        assertFalse(config.mbus().skip_request_thread());
+        assertFalse(config.mbus().skip_reply_thread());
     }
 
     @Test
@@ -97,7 +116,7 @@ public class StorageClusterTest {
     }
 
     @Test
-    public void testVisitors() throws Exception {
+    public void testVisitors() {
         StorVisitorConfig.Builder builder = new StorVisitorConfig.Builder();
         parse(
                 "<cluster id=\"bees\">\n" +
@@ -143,7 +162,7 @@ public class StorageClusterTest {
 
             assertEquals(7, config.num_threads());
             assertFalse(config.enable_multibit_split_optimalization());
-            assertEquals(1, config.num_response_threads());
+            assertEquals(2, config.num_response_threads());
         }
         {
             assertEquals(1, stc.getChildren().size());
@@ -173,7 +192,8 @@ public class StorageClusterTest {
         StorFilestorConfig.Builder builder = new StorFilestorConfig.Builder();
         stc.getConfig(builder);
         StorFilestorConfig config = new StorFilestorConfig(builder);
-        assertEquals(1, config.num_response_threads());
+        assertEquals(2, config.num_response_threads());
+        assertEquals(StorFilestorConfig.Response_sequencer_type.ADAPTIVE, config.response_sequencer_type());
         assertEquals(7, config.num_threads());
     }
 
@@ -243,6 +263,25 @@ public class StorageClusterTest {
             StorFilestorConfig config = new StorFilestorConfig(builder);
             assertEquals(9, config.num_threads());
         }
+    }
+
+    @Test
+    public void testFeatureFlagControlOfResponseSequencer() {
+        StorageCluster stc = parse(
+                "<cluster id=\"bees\">\n" +
+                        "    <documents/>" +
+                        "  <group>" +
+                        "     <node distribution-key=\"0\" hostalias=\"mockhost\"/>" +
+                        "  </group>" +
+                        "</cluster>",
+                new Flavor(new FlavorsConfig.Flavor.Builder().name("test-flavor").minCpuCores(9).build()),
+                new TestProperties().setResponseNumThreads(13).setResponseSequencerType("THROUGHPUT")
+        );
+        StorFilestorConfig.Builder builder = new StorFilestorConfig.Builder();
+        stc.getConfig(builder);
+        StorFilestorConfig config = new StorFilestorConfig(builder);
+        assertEquals(13, config.num_response_threads());
+        assertEquals(StorFilestorConfig.Response_sequencer_type.THROUGHPUT, config.response_sequencer_type());
     }
 
     @Test

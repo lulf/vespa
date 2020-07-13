@@ -179,12 +179,15 @@ AdaptiveSequencedExecutor::exchange_strand(Worker &worker, std::unique_lock<std:
     return true;
 }
 
-AdaptiveSequencedExecutor::Task::UP
-AdaptiveSequencedExecutor::next_task(Worker &worker)
+AdaptiveSequencedExecutor::TaggedTask
+AdaptiveSequencedExecutor::next_task(Worker &worker, std::optional<uint32_t> prev_token)
 {
-    Task::UP task;
+    TaggedTask task;
     Worker *worker_to_wake = nullptr;
     auto guard = std::unique_lock(_mutex);
+    if (prev_token.has_value()) {
+        _barrier.completeEvent(prev_token.value());
+    }
     if (exchange_strand(worker, guard)) {
         assert(worker.state == Worker::State::RUNNING);
         assert(worker.strand != nullptr);
@@ -212,8 +215,10 @@ void
 AdaptiveSequencedExecutor::worker_main()
 {
     Worker worker;
-    while (Task::UP my_task = next_task(worker)) {
-        my_task->run();
+    std::optional<uint32_t> prev_token = std::nullopt;
+    while (TaggedTask my_task = next_task(worker, prev_token)) {
+        my_task.task->run();
+        prev_token = my_task.token;
     }
     _thread_tools->allow_worker_exit.await();
 }
@@ -267,9 +272,9 @@ AdaptiveSequencedExecutor::executeTask(ExecutorId id, Task::UP task)
     assert(id.getId() < _strands.size());
     Strand &strand = _strands[id.getId()];
     auto guard = std::unique_lock(_mutex);
-    maybe_block_self(guard);
     assert(_self.state != Self::State::CLOSED);
-    strand.queue.push(std::move(task));
+    maybe_block_self(guard);
+    strand.queue.push(TaggedTask(std::move(task), _barrier.startEvent()));
     _stats.queueSize.add(++_self.pending_tasks);
     ++_stats.acceptedTasks;
     if (strand.state == Strand::State::WAITING) {
@@ -297,11 +302,14 @@ AdaptiveSequencedExecutor::executeTask(ExecutorId id, Task::UP task)
 void
 AdaptiveSequencedExecutor::sync()
 {
-    vespalib::CountDownLatch latch(_strands.size());
-    for (size_t i = 0; i < _strands.size(); ++i) {
-        execute(ExecutorId(i), [&](){ latch.countDown(); });
+    BarrierCompletion barrierCompletion;
+    {
+        auto guard = std::lock_guard(_mutex);
+        if (!_barrier.startBarrier(barrierCompletion)) {
+            return;
+        }
     }
-    latch.await();
+    barrierCompletion.gate.await();
 }
 
 void

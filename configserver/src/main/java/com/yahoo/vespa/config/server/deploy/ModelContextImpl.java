@@ -25,7 +25,6 @@ import com.yahoo.vespa.flags.Flags;
 
 import java.io.File;
 import java.net.URI;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -147,7 +146,7 @@ public class ModelContextImpl implements ModelContext {
         private final Set<ContainerEndpoint> endpoints;
         private final boolean isBootstrap;
         private final boolean isFirstTimeDeployment;
-        private final boolean useDistributorBtreeDb;
+        private final boolean useContentNodeBtreeDb;
         private final boolean useThreePhaseUpdates;
         private final Optional<EndpointCertificateSecrets> endpointCertificateSecrets;
         private final double defaultTermwiseLimit;
@@ -155,9 +154,13 @@ public class ModelContextImpl implements ModelContext {
         private final double queueSizefactor;
         private final String jvmGCOPtions;
         private final String feedSequencer;
+        private final String responseSequencer;
+        private final int numResponseThreads;
+        private final boolean skipCommunicationManagerThread;
+        private final boolean skipMbusRequestThread;
+        private final boolean skipMbusReplyThread;
         private final Optional<AthenzDomain> athenzDomain;
         private final Optional<ApplicationRoles> applicationRoles;
-        private final int jdiscHealthCheckProxyClientTimeout;
 
         public Properties(ApplicationId applicationId,
                           boolean multitenantFromConfig,
@@ -188,7 +191,7 @@ public class ModelContextImpl implements ModelContext {
             this.endpointCertificateSecrets = endpointCertificateSecrets;
             defaultTermwiseLimit = Flags.DEFAULT_TERM_WISE_LIMIT.bindTo(flagSource)
                     .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
-            useDistributorBtreeDb = Flags.USE_DISTRIBUTOR_BTREE_DB.bindTo(flagSource)
+            useContentNodeBtreeDb = Flags.USE_CONTENT_NODE_BTREE_DB.bindTo(flagSource)
                     .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
             useThreePhaseUpdates = Flags.USE_THREE_PHASE_UPDATES.bindTo(flagSource)
                     .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
@@ -200,10 +203,18 @@ public class ModelContextImpl implements ModelContext {
                     .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
             feedSequencer = Flags.FEED_SEQUENCER_TYPE.bindTo(flagSource)
                     .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
+            responseSequencer = Flags.RESPONSE_SEQUENCER_TYPE.bindTo(flagSource)
+                    .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
+            numResponseThreads = Flags.RESPONSE_NUM_THREADS.bindTo(flagSource)
+                    .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
+            skipCommunicationManagerThread = Flags.SKIP_COMMUNICATIONMANAGER_THREAD.bindTo(flagSource)
+                    .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
+            skipMbusRequestThread = Flags.SKIP_MBUS_REQUEST_THREAD.bindTo(flagSource)
+                    .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
+            skipMbusReplyThread = Flags.SKIP_MBUS_REPLY_THREAD.bindTo(flagSource)
+                    .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();;
             this.athenzDomain = athenzDomain;
             this.applicationRoles = applicationRoles;
-            jdiscHealthCheckProxyClientTimeout = Flags.JDISC_HEALTH_CHECK_PROXY_CLIENT_TIMEOUT.bindTo(flagSource)
-                    .with(FetchVector.Dimension.APPLICATION_ID, applicationId.serializedForm()).value();
         }
 
         @Override
@@ -260,8 +271,8 @@ public class ModelContextImpl implements ModelContext {
         }
 
         @Override
-        public boolean useDistributorBtreeDb() {
-            return useDistributorBtreeDb;
+        public boolean useContentNodeBtreeDb() {
+            return useContentNodeBtreeDb;
         }
 
         @Override
@@ -277,9 +288,15 @@ public class ModelContextImpl implements ModelContext {
             return applicationRoles;
         }
 
-        @Override public Duration jdiscHealthCheckProxyClientTimeout() { return Duration.ofMillis(jdiscHealthCheckProxyClientTimeout); }
         @Override public String jvmGCOptions() { return jvmGCOPtions; }
         @Override public String feedSequencerType() { return feedSequencer; }
+        @Override public String responseSequencerType() { return responseSequencer; }
+        @Override public int defaultNumResponseThreads() {
+            return numResponseThreads;
+        }
+        @Override public boolean skipCommunicationManagerThread() { return skipCommunicationManagerThread; }
+        @Override public boolean skipMbusRequestThread() { return skipMbusRequestThread; }
+        @Override public boolean skipMbusReplyThread() { return skipMbusReplyThread; }
     }
 
 }

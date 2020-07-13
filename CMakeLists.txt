@@ -30,6 +30,8 @@ endif()
 # TODO: Move this to where it's actually needed
 find_package(JNI REQUIRED)
 
+find_package(GTest REQUIRED)
+
 include(build_settings.cmake)
 
 # Enable CTest unit testing
@@ -166,3 +168,9 @@ __create_module_targets(TEST_TARGETS "test")
 
 # Create module targets with name ${MODULE}+source depending on every source target defined within that module
 __create_module_targets(SOURCE_TARGETS "source")
+
+# Create module targets with name ${MODULE}+object depending on every object target defined within that module
+__create_module_targets(OBJECT_TARGETS "object")
+
+# Create module source dependencies
+__create_module_source_dependencies()

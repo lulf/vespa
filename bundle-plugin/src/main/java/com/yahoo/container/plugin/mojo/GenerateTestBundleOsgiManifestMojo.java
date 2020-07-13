@@ -6,6 +6,8 @@ import com.yahoo.container.plugin.classanalysis.ClassFileMetaData;
 import com.yahoo.container.plugin.classanalysis.PackageTally;
 import com.yahoo.container.plugin.osgi.ExportPackages.Export;
 import com.yahoo.container.plugin.osgi.ImportPackages;
+import com.yahoo.container.plugin.util.Artifacts;
+import com.yahoo.container.plugin.util.TestBundleDependencyScopeTranslator;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -18,7 +20,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static com.yahoo.container.plugin.bundle.AnalyzeBundle.exportedPackagesAggregated;
-import static com.yahoo.container.plugin.mojo.TestBundleUtils.outputDirectory;
+import static com.yahoo.container.plugin.util.TestBundleUtils.outputDirectory;
 import static com.yahoo.container.plugin.osgi.ExportPackages.exportsByPackageName;
 import static com.yahoo.container.plugin.osgi.ImportPackages.calculateImports;
 import static com.yahoo.container.plugin.util.Files.allDescendantFiles;
@@ -31,11 +33,12 @@ import static java.util.stream.Collectors.toList;
 public class GenerateTestBundleOsgiManifestMojo extends AbstractGenerateOsgiManifestMojo {
 
     @Parameter
-    private String testProvidedArtifacts;
+    private String testBundleScopeOverrides;
 
     public void execute() throws MojoExecutionException {
         try {
-            Artifacts.ArtifactSet artifactSet = Artifacts.getArtifacts(project, true, testProvidedArtifacts);
+            Artifacts.ArtifactSet artifactSet = Artifacts.getArtifacts(
+                    project, TestBundleDependencyScopeTranslator.from(project.getArtifactMap(), testBundleScopeOverrides));
 
             List<File> providedJars = artifactSet.getJarArtifactsProvided().stream()
                     .map(Artifact::getFile)

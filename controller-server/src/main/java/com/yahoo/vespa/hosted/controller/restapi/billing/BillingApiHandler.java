@@ -19,7 +19,6 @@ import com.yahoo.slime.Slime;
 import com.yahoo.slime.SlimeUtils;
 import com.yahoo.vespa.hosted.controller.ApplicationController;
 import com.yahoo.vespa.hosted.controller.Controller;
-import com.yahoo.vespa.hosted.controller.api.identifiers.DeploymentId;
 import com.yahoo.vespa.hosted.controller.api.integration.billing.PaymentInstrument;
 import com.yahoo.vespa.hosted.controller.api.integration.billing.Invoice;
 import com.yahoo.vespa.hosted.controller.api.integration.billing.InstrumentOwner;
@@ -137,9 +136,9 @@ public class BillingApiHandler extends LoggingRequestHandler {
         var tenantName = TenantName.from(tenant);
         var slime = inspectorOrThrow(request);
         var planId = PlanId.from(slime.field("plan").asString());
-        var hasApplications = applicationController.asList(tenantName).size() > 0;
 
-        var result = billingController.setPlan(tenantName, planId, hasApplications);
+        var hasDeployments = hasDeployments(tenantName);
+        var result = billingController.setPlan(tenantName, planId, hasDeployments);
 
         if (result.isSuccess())
             return new StringResponse("Plan: " + planId.value());
@@ -258,9 +257,20 @@ public class BillingApiHandler extends LoggingRequestHandler {
     }
 
     private void renderInstrument(Cursor cursor, PaymentInstrument instrument) {
+        cursor.setString("pi-id", instrument.getId());
         cursor.setString("type", instrument.getType());
         cursor.setString("brand", instrument.getBrand());
         cursor.setString("endingWith", instrument.getEndingWith());
+        cursor.setString("expiryDate", instrument.getExpiryDate());
+        cursor.setString("displayText", instrument.getDisplayText());
+        cursor.setString("nameOnCard", instrument.getNameOnCard());
+        cursor.setString("addressLine1", instrument.getAddressLine1());
+        cursor.setString("addressLine2", instrument.getAddressLine2());
+        cursor.setString("zip", instrument.getZip());
+        cursor.setString("city", instrument.getCity());
+        cursor.setString("state", instrument.getState());
+        cursor.setString("country", instrument.getCountry());
+
     }
 
     private void renderCurrentUsage(Cursor cursor, Invoice currentUsage) {
@@ -378,6 +388,16 @@ public class BillingApiHandler extends LoggingRequestHandler {
         if (until == null || until.isEmpty() || until.isBlank())
             return LocalDate.now().plusDays(1);
         return LocalDate.parse(until);
+    }
+
+    private boolean hasDeployments(TenantName tenantName) {
+        return applicationController.asList(tenantName)
+                .stream()
+                .flatMap(app -> app.instances().values()
+                        .stream()
+                        .flatMap(instance -> instance.deployments().values().stream())
+                )
+                .count() > 0;
     }
 
 }

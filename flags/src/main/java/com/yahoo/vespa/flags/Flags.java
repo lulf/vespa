@@ -123,6 +123,11 @@ public class Flags {
             "Otherwise it specifies the total (unallocated or not) capacity.",
             "Takes effect on next iteration of DynamicProvisioningMaintainer.");
 
+    public static final UnboundListFlag<String> INACTIVE_MAINTENANCE_JOBS = defineListFlag(
+            "inactive-maintenance-jobs", List.of(), String.class,
+            "The list of maintenance jobs that are inactive.",
+            "Takes effect immediately, but any currently running jobs will run until completion.");
+
     public static final UnboundDoubleFlag DEFAULT_TERM_WISE_LIMIT = defineDoubleFlag(
             "default-term-wise-limit", 1.0,
             "Default limit for when to apply termwise query evaluation",
@@ -151,11 +156,37 @@ public class Flags {
             "Selects type of sequenced executor used for feeding, valid values are LATENCY, ADAPTIVE, THROUGHPUT",
             "Takes effect at redeployment",
             ZONE_ID, APPLICATION_ID);
+    public static final UnboundStringFlag RESPONSE_SEQUENCER_TYPE = defineStringFlag(
+            "response-sequencer-type", "ADAPTIVE",
+            "Selects type of sequenced executor used for mbus responses, valid values are LATENCY, ADAPTIVE, THROUGHPUT",
+            "Takes effect at redeployment",
+            ZONE_ID, APPLICATION_ID);
+    public static final UnboundIntFlag RESPONSE_NUM_THREADS = defineIntFlag(
+            "response-num-threads", 2,
+            "Number of threads used for mbus responses, default is 2, negative number = numcores/4",
+            "Takes effect at redeployment",
+            ZONE_ID, APPLICATION_ID);
+    public static final UnboundBooleanFlag SKIP_COMMUNICATIONMANAGER_THREAD = defineFeatureFlag(
+            "skip-communicatiomanager-thread", false,
+            "Should we skip the communicationmanager thread",
+            "Takes effect at redeployment",
+            ZONE_ID, APPLICATION_ID);
+    public static final UnboundBooleanFlag SKIP_MBUS_REQUEST_THREAD = defineFeatureFlag(
+            "skip-mbus-request-thread", false,
+            "Should we skip the mbus request thread",
+            "Takes effect at redeployment",
+            ZONE_ID, APPLICATION_ID);
 
-    public static final UnboundBooleanFlag USE_DISTRIBUTOR_BTREE_DB = defineFeatureFlag(
-            "use-distributor-btree-db", true,
-            "Whether to use the new B-tree bucket database in the distributors.",
-            "Takes effect at restart of distributor process",
+    public static final UnboundBooleanFlag SKIP_MBUS_REPLY_THREAD = defineFeatureFlag(
+            "skip-mbus-reply-thread", false,
+            "Should we skip the mbus reply thread",
+            "Takes effect at redeployment",
+            ZONE_ID, APPLICATION_ID);
+
+    public static final UnboundBooleanFlag USE_CONTENT_NODE_BTREE_DB = defineFeatureFlag(
+            "use-content-node-btree-db", false,
+            "Whether to use the new B-tree bucket database on the content node.",
+            "Takes effect at restart of content node process",
             ZONE_ID, APPLICATION_ID);
 
     public static final UnboundBooleanFlag USE_THREE_PHASE_UPDATES = defineFeatureFlag(
@@ -262,12 +293,6 @@ public class Flags {
             "Takes effect on next deployment (controller)",
             ZONE_ID);
 
-    public static final UnboundIntFlag JDISC_HEALTH_CHECK_PROXY_CLIENT_TIMEOUT = defineIntFlag(
-            "jdisc-health-check-proxy-client-timeout", 1000,
-            "Temporary flag to rollout reduced timeout for JDisc's health check proxy client. Timeout in milliseconds",
-            "Takes effect on next internal redeployment",
-            APPLICATION_ID);
-
     public static final UnboundBooleanFlag APPLICATION_IAM_ROLE = defineFeatureFlag(
             "application-iam-roles", false,
             "Allow separate iam roles when provisioning/assigning hosts",
@@ -295,17 +320,29 @@ public class Flags {
             APPLICATION_ID
     );
 
+    public static final UnboundBooleanFlag WEIGHTED_DNS_PER_REGION = defineFeatureFlag(
+            "weighted-dns-per-region", false,
+            "Whether to create weighted DNS records per region in global endpoints",
+            "Takes effect on next deployment through controller",
+            APPLICATION_ID
+    );
+
     public static final UnboundBooleanFlag ONLY_PUBLIC_ACCESS = defineFeatureFlag(
             "enable-public-only", false,
             "Only access public hosts from container",
             "Takes effect on next tick"
     );
 
-    public static final UnboundBooleanFlag WEIGHTED_DNS_PER_REGION = defineFeatureFlag(
-            "weighted-dns-per-region", false,
-            "Whether to create weighted DNS records per region in global endpoints",
-            "Takes effect on next deployment through controller",
-            APPLICATION_ID
+    public static final UnboundListFlag<String> OUTBOUND_BLOCKED_IPV4 = defineListFlag(
+            "container-outbound-blocked-ipv4", List.of(), String.class,
+            "List of IPs or CIDRs that are blocked for outbound connections",
+            "Takes effect on next tick"
+    );
+
+    public static final UnboundListFlag<String> OUTBOUND_BLOCKED_IPV6 = defineListFlag(
+            "container-outbound-blocked-ipv6", List.of(), String.class,
+            "List of IPs or CIDRs that are blocked for outbound connections",
+            "Takes effect on next tick"
     );
 
     /** WARNING: public for testing: All flags should be defined in {@link Flags}. */

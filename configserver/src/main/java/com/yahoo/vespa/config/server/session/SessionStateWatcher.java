@@ -2,7 +2,6 @@
 package com.yahoo.vespa.config.server.session;
 
 import com.yahoo.text.Utf8;
-import com.yahoo.vespa.config.server.ReloadHandler;
 import com.yahoo.vespa.config.server.monitoring.MetricUpdater;
 import com.yahoo.vespa.curator.Curator;
 import org.apache.curator.framework.recipes.cache.ChildData;
@@ -26,7 +25,6 @@ public class SessionStateWatcher {
     private static final Logger log = Logger.getLogger(SessionStateWatcher.class.getName());
 
     private final Curator.FileCache fileCache;
-    private final ReloadHandler reloadHandler;
     private final RemoteSession remoteSession;
     private final MetricUpdater metrics;
     private final Executor zkWatcherExecutor;
@@ -34,14 +32,12 @@ public class SessionStateWatcher {
     private Optional<LocalSession> localSession;
 
     SessionStateWatcher(Curator.FileCache fileCache,
-                        ReloadHandler reloadHandler,
                         RemoteSession remoteSession,
                         Optional<LocalSession> localSession,
                         MetricUpdater metrics,
                         Executor zkWatcherExecutor,
                         SessionRepository sessionRepository) {
         this.fileCache = fileCache;
-        this.reloadHandler = reloadHandler;
         this.remoteSession = remoteSession;
         this.localSession = localSession;
         this.metrics = metrics;
@@ -53,22 +49,26 @@ public class SessionStateWatcher {
 
     private void sessionStatusChanged(Status newStatus) {
         long sessionId = remoteSession.getSessionId();
-
-        if (newStatus.equals(Status.PREPARE)) {
-            createLocalSession(sessionId);
-            log.log(Level.FINE, remoteSession.logPre() + "Loading prepared session: " + sessionId);
-            remoteSession.loadPrepared();
-        } else if (newStatus.equals(Status.ACTIVATE)) {
-            createLocalSession(sessionId);
-            remoteSession.makeActive(reloadHandler);
-        } else if (newStatus.equals(Status.DEACTIVATE)) {
-            remoteSession.deactivate();
-        } else if (newStatus.equals(Status.DELETE)) {
-            remoteSession.deactivate();
-            localSession.ifPresent(session -> {
-                log.log(Level.FINE, session.logPre() + "Deleting session " + sessionId);
-                sessionRepository.deleteLocalSession(session);
-            });
+        switch (newStatus) {
+            case NEW:
+            case NONE:
+                break;
+            case PREPARE:
+                createLocalSession(sessionId);
+                sessionRepository.prepare(remoteSession);
+                break;
+            case ACTIVATE:
+                createLocalSession(sessionId);
+                sessionRepository.activate(remoteSession);
+                break;
+            case DEACTIVATE:
+                sessionRepository.deactivate(remoteSession);
+                break;
+            case DELETE:
+                sessionRepository.delete(remoteSession, localSession);
+                break;
+            default:
+                throw new IllegalStateException("Unknown status " + newStatus);
         }
     }
 

@@ -70,8 +70,7 @@ public interface ModelContext {
         // TODO Revisit in May or June 2020
         double defaultTermwiseLimit();
 
-        // TODO Remove when 7.225 is last
-        default int defaultNumResponseThreads() { return 1; }
+        default int defaultNumResponseThreads() { return 2; }
 
         // TODO Revisit in May or June 2020
         double threadPoolSizeFactor();
@@ -97,8 +96,15 @@ public interface ModelContext {
 
         // Select sequencer type use while feeding.
         String feedSequencerType();
+        String responseSequencerType();
+        boolean skipCommunicationManagerThread();
+        boolean skipMbusRequestThread();
+        boolean skipMbusReplyThread();
 
-        boolean useDistributorBtreeDb();
+        // TODO Remove when 7.247 is last
+        default boolean useDistributorBtreeDb() { return true; }
+
+        boolean useContentNodeBtreeDb();
 
         boolean useThreePhaseUpdates();
 
@@ -110,8 +116,8 @@ public interface ModelContext {
 
         Optional<ApplicationRoles> applicationRoles();
 
-        // TODO(bjorncs): Temporary feature flag, revisit July 2020
-        default Duration jdiscHealthCheckProxyClientTimeout() { return Duration.ofSeconds(1); }
+        // TODO(bjorncs): Temporary feature flag, revisit August 2020
+        default Duration jdiscHealthCheckProxyClientTimeout() { return Duration.ofMillis(100); }
     }
 
 }

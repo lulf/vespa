@@ -9,8 +9,6 @@ import com.yahoo.config.provision.ApplicationId;
 import com.yahoo.config.provision.TenantName;
 import com.yahoo.path.Path;
 import com.yahoo.vespa.config.server.GlobalComponentRegistry;
-import com.yahoo.vespa.config.server.ReloadHandler;
-import com.yahoo.vespa.config.server.RequestHandler;
 import com.yahoo.vespa.config.server.application.TenantApplications;
 import com.yahoo.vespa.config.server.deploy.TenantFileSystemDirs;
 import com.yahoo.vespa.config.server.monitoring.MetricUpdater;
@@ -120,15 +118,13 @@ public class TenantRepository {
 
         if (useZooKeeperWatchForTenantChanges) {
             this.directoryCache = Optional.of(curator.createDirectoryCache(tenantsPath.getAbsolute(), false, false, zkCacheExecutor));
-            this.directoryCache.get().start();
             this.directoryCache.get().addListener(this::childEvent);
+            this.directoryCache.get().start();
         } else {
             this.directoryCache = Optional.empty();
         }
-        log.log(Level.FINE, "Creating all tenants");
         bootstrapTenants();
         notifyTenantsLoaded();
-        log.log(Level.FINE, "All tenants created");
         checkForRemovedApplicationsService.scheduleWithFixedDelay(this::removeUnusedApplications,
                                                                   checkForRemovedApplicationsInterval.getSeconds(),
                                                                   checkForRemovedApplicationsInterval.getSeconds(),
@@ -142,13 +138,8 @@ public class TenantRepository {
     }
 
     public synchronized void addTenant(TenantName tenantName) {
-        addTenant(tenantName, null, null);
-    }
-
-    public synchronized void addTenant(TenantName tenantName, RequestHandler requestHandler,
-                                       ReloadHandler reloadHandler) {
         writeTenantPath(tenantName);
-        createTenant(tenantName, componentRegistry.getClock().instant(), requestHandler, reloadHandler);
+        createTenant(tenantName, componentRegistry.getClock().instant());
     }
 
      private static Set<TenantName> readTenantsFromZooKeeper(Curator curator) {
@@ -201,7 +192,7 @@ public class TenantRepository {
 
     // Use when bootstrapping an existing tenant based on ZooKeeper data
     protected void bootstrapTenant(TenantName tenantName) {
-        createTenant(tenantName, readCreatedTimeFromZooKeeper(tenantName), null, null);
+        createTenant(tenantName, readCreatedTimeFromZooKeeper(tenantName));
     }
 
     public Instant readCreatedTimeFromZooKeeper(TenantName tenantName) {
@@ -213,7 +204,7 @@ public class TenantRepository {
     }
 
     // Creates tenant and all its dependencies. This also includes loading active applications
-    private void createTenant(TenantName tenantName, Instant created, RequestHandler requestHandler, ReloadHandler reloadHandler) {
+    private void createTenant(TenantName tenantName, Instant created) {
         if (tenants.containsKey(tenantName)) return;
 
         TenantApplications applicationRepo =
@@ -226,16 +217,13 @@ public class TenantRepository {
                                        componentRegistry.getConfigserverConfig(),
                                        componentRegistry.getHostRegistries().createApplicationHostRegistry(tenantName),
                                        new TenantFileSystemDirs(componentRegistry.getConfigServerDB(), tenantName));
-        if (requestHandler == null)
-            requestHandler = applicationRepo;
-        if (reloadHandler == null)
-            reloadHandler = applicationRepo;
-        SessionRepository sessionRepository = new SessionRepository(tenantName, componentRegistry,
-                                                                    applicationRepo, reloadHandler,
+        SessionRepository sessionRepository = new SessionRepository(tenantName,
+                                                                    componentRegistry,
+                                                                    applicationRepo,
                                                                     componentRegistry.getFlagSource(),
                                                                     componentRegistry.getSessionPreparer());
         log.log(Level.INFO, "Adding tenant '" + tenantName + "'" + ", created " + created);
-        Tenant tenant = new Tenant(tenantName, sessionRepository, requestHandler, applicationRepo, created);
+        Tenant tenant = new Tenant(tenantName, sessionRepository, applicationRepo, applicationRepo, created);
         notifyNewTenant(tenant);
         tenants.putIfAbsent(tenantName, tenant);
     }

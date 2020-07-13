@@ -8,6 +8,7 @@ import com.yahoo.container.plugin.classanalysis.PackageTally;
 import com.yahoo.container.plugin.osgi.ExportPackages;
 import com.yahoo.container.plugin.osgi.ExportPackages.Export;
 import com.yahoo.container.plugin.osgi.ImportPackages.Import;
+import com.yahoo.container.plugin.util.Artifacts;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -55,8 +56,14 @@ public class GenerateOsgiManifestMojo extends AbstractGenerateOsgiManifestMojo {
     @Parameter(alias = "Main-Class")
     private String mainClass = null;
 
+    @Parameter(defaultValue = "false")
+    private boolean buildVespaPlatformBundle;
+
     public void execute() throws MojoExecutionException {
         try {
+            if (discPreInstallBundle != null && ! buildVespaPlatformBundle)
+                throw new MojoExecutionException("The 'discPreInstallBundle' parameter can only be used by Vespa platform bundles.");
+
             Artifacts.ArtifactSet artifactSet = Artifacts.getArtifacts(project);
             warnOnUnsupportedArtifacts(artifactSet.getNonJarArtifacts());
             warnIfInternalContainerArtifactsAreIncluded(artifactSet.getJarArtifactsToInclude());
@@ -181,16 +188,15 @@ public class GenerateOsgiManifestMojo extends AbstractGenerateOsgiManifestMojo {
                         artifact.getId(), artifact.getType())));
     }
 
-    // TODO: fail the build by throwing a MojoExecutionException
     private void warnIfInternalContainerArtifactsAreIncluded(Collection<Artifact> includedArtifacts) throws MojoExecutionException {
         /* In most cases it's sufficient to test for 'component', as it's the lowest level container artifact,
          * Embedding container artifacts will cause class loading issues at runtime, because the classes will
-         * not be equal to those seen by the framework (e.g. AbstractComponent).
-         */
+         * not be equal to those seen by the framework (e.g. AbstractComponent). */
         if (includedArtifacts.stream().anyMatch(this::isJdiscComponentArtifact)) {
-            getLog().warn("This project includes the 'com.yahoo.vespa:component' artifact in compile scope." +
-                                  " It must be set to scope 'provided' to avoid resource leaks in your application at runtime." +
-                                  " The build will fail on a future Vespa version unless this is fixed.");
+            throw new MojoExecutionException(
+                    "This project includes the 'com.yahoo.vespa:component' artifact in compile scope." +
+                            " It must have scope 'provided' to avoid resource leaks in your application at runtime." +
+                            " Please use 'mvn dependency:tree' to find the root cause.");
         }
     }
 

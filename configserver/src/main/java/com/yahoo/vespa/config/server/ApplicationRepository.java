@@ -307,8 +307,9 @@ public class ApplicationRepository implements com.yahoo.config.provision.Deploye
         LocalSession activeSession = getActiveLocalSession(tenant, application);
         if (activeSession == null) return Optional.empty();
         TimeoutBudget timeoutBudget = new TimeoutBudget(clock, timeout);
-        LocalSession newSession = tenant.getSessionRepository().createSessionFromExisting(activeSession, logger, true, timeoutBudget);
-        tenant.getSessionRepository().addLocalSession(newSession);
+        SessionRepository sessionRepository = tenant.getSessionRepository();
+        LocalSession newSession = sessionRepository.createSessionFromExisting(activeSession, logger, true, timeoutBudget);
+        sessionRepository.addLocalSession(newSession);
 
         return Optional.of(Deployment.unprepared(newSession, this, hostProvisioner, tenant, timeout, clock,
                                                  false /* don't validate as this is already deployed */, bootstrap));
@@ -465,7 +466,7 @@ public class ApplicationRepository implements com.yahoo.config.provision.Deploye
                 .filter(fileReference -> isFileLastModifiedBefore(new File(fileReferencesPath, fileReference), instant))
                 .collect(Collectors.toSet());
         if (fileReferencesToDelete.size() > 0) {
-            log.log(Level.INFO, "Will delete file references not in use: " + fileReferencesToDelete);
+            log.log(Level.FINE, "Will delete file references not in use: " + fileReferencesToDelete);
             fileReferencesToDelete.forEach(fileReference -> {
                 File file = new File(fileReferencesPath, fileReference);
                 if ( ! IOUtils.recursiveDeleteDir(file))
@@ -494,11 +495,10 @@ public class ApplicationRepository implements com.yahoo.config.provision.Deploye
 
     private Application getApplication(ApplicationId applicationId, Optional<Version> version) {
         try {
-            Tenant tenant = tenantRepository.getTenant(applicationId.tenant());
+            Tenant tenant = getTenant(applicationId);
             if (tenant == null) throw new NotFoundException("Tenant '" + applicationId.tenant() + "' not found");
             long sessionId = getSessionIdForApplication(tenant, applicationId);
-            RemoteSession session = tenant.getSessionRepository().getRemoteSession(sessionId);
-            if (session == null) throw new NotFoundException("Remote session " + sessionId + " not found");
+            RemoteSession session = getRemoteSession(tenant, sessionId);
             return session.ensureApplicationLoaded().getForVersionOrLatest(version, clock.instant());
         } catch (NotFoundException e) {
             log.log(Level.WARNING, "Failed getting application for '" + applicationId + "': " + e.getMessage());
@@ -620,21 +620,20 @@ public class ApplicationRepository implements com.yahoo.config.provision.Deploye
 
     private long getSessionIdForApplication(Tenant tenant, ApplicationId applicationId) {
         TenantApplications applicationRepo = tenant.getApplicationRepo();
-        if (applicationRepo == null)
-            throw new NotFoundException("Application repo for tenant '" + tenant.getName() + "' not found");
-
+        if (! applicationRepo.exists(applicationId))
+            throw new NotFoundException("Unknown application id '" + applicationId + "'");
         return applicationRepo.requireActiveSessionOf(applicationId);
     }
 
-    public void validateThatRemoteSessionIsNotActive(Tenant tenant, long sessionId) {
-        RemoteSession session = getRemoteSession(tenant, sessionId);
+    public void validateThatSessionIsNotActive(Tenant tenant, long sessionId) {
+        Session session = getRemoteSession(tenant, sessionId);
         if (Session.Status.ACTIVATE.equals(session.getStatus())) {
             throw new IllegalStateException("Session is active: " + sessionId);
         }
     }
 
-    public void validateThatRemoteSessionIsPrepared(Tenant tenant, long sessionId) {
-        RemoteSession session = getRemoteSession(tenant, sessionId);
+    public void validateThatSessionIsPrepared(Tenant tenant, long sessionId) {
+        Session session = getRemoteSession(tenant, sessionId);
         if ( ! Session.Status.PREPARE.equals(session.getStatus()))
             throw new IllegalStateException("Session not prepared: " + sessionId);
     }
@@ -688,6 +687,14 @@ public class ApplicationRepository implements com.yahoo.config.provision.Deploye
                 activeSessions.put(applicationId, activeSession.getSessionId());
         });
         sessionsPerTenant.keySet().forEach(tenant -> tenant.getSessionRepository().deleteExpiredSessions(activeSessions));
+    }
+
+    public int deleteExpiredLocks(Duration expiryTime) {
+        return tenantRepository.getAllTenants()
+                .stream()
+                .map(tenant -> tenant.getSessionRepository().deleteExpiredLocks(clock, expiryTime))
+                .mapToInt(i -> i)
+                .sum();
     }
 
     public int deleteExpiredRemoteSessions(Duration expiryTime) {

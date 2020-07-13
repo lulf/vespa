@@ -128,9 +128,7 @@ public class SessionPreparer {
                                                   tenantPath, serverDbSessionDir, applicationPackage, sessionZooKeeperClient);
 
         preparation.preprocess();
-
         var distributedApplicationPackage = preparation.distributeApplicationPackage();
-
         try {
             AllocatedHosts allocatedHosts = preparation.buildModels(now);
             preparation.makeResult(allocatedHosts);
@@ -251,6 +249,7 @@ public class SessionPreparer {
                     .filter(spec -> ! spec.getHostName().equals(fileRegistry.fileSourceHost()))
                     .forEach(spec -> fileDistribution.startDownload(spec.getHostName(), spec.getConfigServerPort(), Set.of(fileReference)));
 
+            checkTimeout("distributeApplicationPackage");
             return fileReference;
         }
 
