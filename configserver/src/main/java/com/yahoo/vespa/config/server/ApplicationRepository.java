@@ -208,6 +208,14 @@ public class ApplicationRepository implements com.yahoo.config.provision.Deploye
         this.metric = metric;
     }
 
+    public Clock clock() {
+        return clock;
+    }
+
+    public Metric metric() {
+        return metric;
+    }
+
     // ---------------- Deploying ----------------------------------------------------------------
 
     public PrepareResult prepare(Tenant tenant, long sessionId, PrepareParams prepareParams, Instant now) {
@@ -679,7 +687,11 @@ public class ApplicationRepository implements com.yahoo.config.provision.Deploye
         tenantRepository.getAllTenants().forEach(tenant -> sessionsPerTenant.put(tenant, tenant.getSessionRepository().getLocalSessions()));
 
         Set<ApplicationId> applicationIds = new HashSet<>();
-        sessionsPerTenant.values().forEach(sessionList -> sessionList.forEach(s -> applicationIds.add(s.getApplicationId())));
+        sessionsPerTenant.values()
+                .forEach(sessionList -> sessionList.stream()
+                        .map(Session::getApplicationId)
+                        .filter(Objects::nonNull)
+                        .forEach(applicationIds::add));
 
         Map<ApplicationId, Long> activeSessions = new HashMap<>();
         applicationIds.forEach(applicationId -> {
