@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.json.JSONObject;
 
 /**
  * The API controllers use when communicating with config servers.
@@ -55,7 +56,7 @@ public interface ConfigServer {
 
     List<ClusterMetrics> getDeploymentMetricsV1(DeploymentId deployment);
 
-    String getProtonMetricsV1(DeploymentId deployment);
+    JSONObject getProtonMetricsV1(DeploymentId deployment);
 
     List<String> getContentClusters(DeploymentId deployment);
 
