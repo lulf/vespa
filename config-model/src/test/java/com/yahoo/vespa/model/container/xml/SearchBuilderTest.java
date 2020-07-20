@@ -46,7 +46,7 @@ public class SearchBuilderTest extends ContainerModelBuilderTestBase {
         createModel(root, clusterElem);
 
         String discBindingsConfig = root.getConfig(JdiscBindingsConfig.class, "default").toString();
-        assertThat(discBindingsConfig, containsString(GUIHandler.BINDING));
+        assertThat(discBindingsConfig, containsString(GUIHandler.BINDING_PATH));
 
         ApplicationContainerCluster cluster = (ApplicationContainerCluster)root.getChildren().get("default");
 
@@ -64,8 +64,8 @@ public class SearchBuilderTest extends ContainerModelBuilderTestBase {
         Element clusterElem = DomBuilderTest.parse(
                 "<container id='default' version='1.0'>",
                 "  <search>",
-                "    <binding>binding0</binding>",
-                "    <binding>binding1</binding>",
+                "    <binding>http://*/binding0</binding>",
+                "    <binding>http://*/binding1</binding>",
                 "  </search>",
                 nodesXml,
                 "</container>");
@@ -73,8 +73,8 @@ public class SearchBuilderTest extends ContainerModelBuilderTestBase {
         createModel(root, clusterElem);
 
         String discBindingsConfig = root.getConfig(JdiscBindingsConfig.class, "default").toString();
-        assertThat(discBindingsConfig, containsString(".serverBindings[0] \"binding0\""));
-        assertThat(discBindingsConfig, containsString(".serverBindings[1] \"binding1\""));
+        assertThat(discBindingsConfig, containsString(".serverBindings[0] \"http://*/binding0\""));
+        assertThat(discBindingsConfig, containsString(".serverBindings[1] \"http://*/binding1\""));
         assertThat(discBindingsConfig, not(containsString("/search/*")));
     }
 
@@ -101,7 +101,7 @@ public class SearchBuilderTest extends ContainerModelBuilderTestBase {
                 "<container id='default' version='1.0'>",
                 "  <search />",
                 "  <handler id='" + myHandler + "'>",
-                "    <binding>" + SEARCH_HANDLER_BINDING + "</binding>",
+                "    <binding>" + SEARCH_HANDLER_BINDING.patternString() + "</binding>",
                 "  </handler>",
                 nodesXml,
                 "</container>");
@@ -109,7 +109,7 @@ public class SearchBuilderTest extends ContainerModelBuilderTestBase {
         createModel(root, clusterElem);
 
         var discBindingsConfig = root.getConfig(JdiscBindingsConfig.class, "default");
-        assertThat(discBindingsConfig.handlers(myHandler).serverBindings(0), is(SEARCH_HANDLER_BINDING));
+        assertThat(discBindingsConfig.handlers(myHandler).serverBindings(0), is(SEARCH_HANDLER_BINDING.patternString()));
         assertThat(discBindingsConfig.handlers(SEARCH_HANDLER_CLASS), is(nullValue()));
     }
 
