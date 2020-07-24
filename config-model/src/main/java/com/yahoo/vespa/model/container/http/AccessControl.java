@@ -15,6 +15,7 @@ import com.yahoo.vespa.model.container.component.chain.Chain;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -101,6 +102,7 @@ public class AccessControl {
         http.setAccessControl(this);
         addAccessControlFilterChain(http);
         addAccessControlExcludedChain(http);
+        removeDuplicateBindingsFromAccessControlChain(http);
     }
 
     public static boolean hasHandlerThatNeedsProtection(ApplicationContainerCluster cluster) {
@@ -134,6 +136,22 @@ public class AccessControl {
                 }
             }
         }
+    }
+
+    // Remove bindings from access control chain that have binding pattern as a different filter chain
+    private void removeDuplicateBindingsFromAccessControlChain(Http http) {
+        Set<FilterBinding> duplicateBindings = new HashSet<>();
+        for (FilterBinding binding : http.getBindings()) {
+            if (binding.filterId().toId().equals(ACCESS_CONTROL_CHAIN_ID)) {
+                for (FilterBinding otherBinding : http.getBindings()) {
+                    if (!binding.filterId().equals(otherBinding.filterId())
+                            && binding.binding().equals(otherBinding.binding())) {
+                        duplicateBindings.add(binding);
+                    }
+                }
+            }
+        }
+        duplicateBindings.forEach(http.getBindings()::remove);
     }
 
     private static FilterBinding createAccessControlBinding(String path) {
