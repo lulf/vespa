@@ -22,6 +22,7 @@ public class BindingPattern implements Comparable<BindingPattern> {
             Pattern.compile("([^:]+)://([^:/]+)(:((\\*)|([0-9]+)))?(/.*)", Pattern.UNICODE_CASE | Pattern.CANON_EQ);
 
     public static final String WILDCARD_PATTERN = "*";
+    private static final String HTTP_SCHEME = "http";
 
     private final String scheme;
     private final String host;
@@ -53,15 +54,19 @@ public class BindingPattern implements Comparable<BindingPattern> {
     }
 
     public static BindingPattern createUserGeneratedFromHttpPath(String path) {
-        return new BindingPattern("http", "*", null, path, true);
+        return new BindingPattern(HTTP_SCHEME, WILDCARD_PATTERN, null, path, true);
     }
 
     public static BindingPattern createModelGeneratedFromPattern(String pattern) {
         return createFromBindingString(pattern, false);
     }
 
+    public static BindingPattern createModelGeneratedFromPortAndPath(String port, String path) {
+        return new BindingPattern(HTTP_SCHEME, WILDCARD_PATTERN, port, path, true);
+    }
+
     public static BindingPattern createModelGeneratedFromHttpPath(String path) {
-        return new BindingPattern("http", "*", null, path, false);
+        return createModelGeneratedFromPortAndPath(null, path);
     }
 
     private static BindingPattern createFromBindingString(String binding, boolean isUserGenerated) {
